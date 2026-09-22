@@ -42,6 +42,8 @@ create table if not exists public.transactions (
   type text not null check (type in ('income', 'expense')),
   amount numeric(14, 2) not null check (amount > 0),
   category text not null default 'Lainnya',
+  payment_method text not null default 'Cash'
+    check (payment_method in ('QRIS', 'Transfer', 'Topup', 'Cash')),
   note text,
   date date not null default current_date,
   created_at timestamptz not null default now()
@@ -67,10 +69,24 @@ create table if not exists public.loans (
 create index if not exists loans_user_status_idx
   on public.loans (user_id, status);
 
+-- ---------- Loan Payments (cicilan pinjaman) ----------
+create table if not exists public.loan_payments (
+  id uuid primary key default gen_random_uuid(),
+  loan_id uuid not null references public.loans (id) on delete cascade,
+  amount numeric(14, 2) not null check (amount > 0),
+  paid_at date not null default current_date,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists loan_payments_loan_idx
+  on public.loan_payments (loan_id, paid_at desc);
+
 -- ---------- Row Level Security ----------
 alter table public.profiles enable row level security;
 alter table public.transactions enable row level security;
 alter table public.loans enable row level security;
+alter table public.loan_payments enable row level security;
 
 -- profiles: user hanya bisa melihat & mengubah profilnya sendiri
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -96,6 +112,17 @@ create policy "loans_all_own"
   on public.loans for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- loan_payments: hanya pemilik pinjaman yang bisa akses cicilannya
+drop policy if exists "loan_payments_all_own" on public.loan_payments;
+create policy "loan_payments_all_own"
+  on public.loan_payments for all
+  using (
+    exists (select 1 from public.loans l where l.id = loan_id and l.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.loans l where l.id = loan_id and l.user_id = auth.uid())
+  );
 
 -- ============================================================
 -- Selesai. Setelah ini, isi file .env dengan:

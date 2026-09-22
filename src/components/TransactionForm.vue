@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories.js'
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PAYMENT_METHODS } from '../lib/categories.js'
 import { todayISO } from '../lib/format.js'
 
 const props = defineProps({
@@ -17,6 +17,7 @@ const error = ref('')
 const form = ref({
   amount: '',
   category: '',
+  payment_method: 'Cash',
   note: '',
   date: todayISO(),
 })
@@ -32,11 +33,12 @@ watch(
       form.value = {
         amount: tx.amount,
         category: tx.category,
+        payment_method: tx.payment_method || 'Cash',
         note: tx.note ?? '',
         date: tx.date.slice(0, 10),
       }
     } else {
-      form.value = { amount: '', category: '', note: '', date: todayISO() }
+      form.value = { amount: '', category: '', note: '', date: todayISO(), payment_method: 'Cash' }
     }
     error.value = ''
   },
@@ -54,19 +56,20 @@ async function submit() {
     error.value = 'Masukkan nominal yang valid (lebih dari 0).'
     return
   }
-  saving.value = true
-  try {
-    await emit('save', {
-      type: props.type,
-      amount,
-      category: form.value.category,
-      note: form.value.note,
-      date: form.value.date,
-    })
-    form.value = { amount: '', category: '', note: '', date: todayISO() }
-  } finally {
-    saving.value = false
-  }
+saving.value = true
+    try {
+      await emit('save', {
+        type: props.type,
+        amount,
+        category: form.value.category,
+        payment_method: form.value.payment_method || 'Cash',
+        note: form.value.note,
+        date: form.value.date,
+      })
+      form.value = { amount: '', category: '', note: '', date: todayISO(), payment_method: 'Cash' }
+    } finally {
+      saving.value = false
+    }
 }
 </script>
 
@@ -102,6 +105,16 @@ async function submit() {
           {{ cat }}
         </button>
       </div>
+    </div>
+
+    <div>
+      <label class="mb-1.5 block text-sm font-medium text-slate-700">Metode Bayar</label>
+      <select
+        v-model="form.payment_method"
+        class="w-full appearance-none rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+      >
+        <option v-for="method in PAYMENT_METHODS" :key="method" :value="method">{{ method }}</option>
+      </select>
     </div>
 
     <div>

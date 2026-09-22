@@ -33,6 +33,12 @@ const routes = [
     meta: { requiresAuth: true, title: 'Pinjaman' },
   },
   {
+    path: '/pinjaman/:id',
+    name: 'loan-detail',
+    component: () => import('../views/LoanDetailView.vue'),
+    meta: { requiresAuth: true, title: 'Detail Pinjaman' },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/',
   },

@@ -21,6 +21,8 @@ export const INCOME_CATEGORIES = [
   'Lainnya',
 ]
 
+export const PAYMENT_METHODS = ['QRIS', 'Transfer', 'Topup', 'Cash']
+
 export const CATEGORY_COLORS = {
   Makanan: '#f97316',
   Transportasi: '#3b82f6',

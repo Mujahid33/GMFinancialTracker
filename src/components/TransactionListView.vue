@@ -116,7 +116,7 @@ onMounted(load)
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-semibold text-slate-900">{{ tx.category }}</p>
           <p class="truncate text-xs text-slate-500">{{ tx.note || formatDate(tx.date) }}</p>
-          <p class="text-[11px] text-slate-400">{{ formatDate(tx.date) }}</p>
+          <p class="text-[11px] text-slate-400">{{ formatDate(tx.date) }} · {{ tx.payment_method || 'Cash' }}</p>
         </div>
         <div class="flex flex-col items-end gap-1">
           <p class="text-sm font-bold" :class="isExpense ? 'text-red-600' : 'text-emerald-600'">
