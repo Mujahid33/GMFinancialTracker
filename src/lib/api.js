@@ -3,10 +3,16 @@ import { todayISO } from './format.js'
 
 const toNumber = (value) => Math.round(Number(value) * 100) / 100
 
-async function currentUserId() {
+async function myContext() {
   const { data } = await supabase.auth.getUser()
   if (!data.user) throw new Error('Sesi login tidak ditemukan.')
-  return data.user.id
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, family_id')
+    .eq('id', data.user.id)
+    .maybeSingle()
+  if (error) throw error
+  return { userId: data.user.id, familyId: profile?.family_id ?? null }
 }
 
 function transactionRow(payload) {
@@ -45,8 +51,10 @@ export const transactionsApi = {
   },
 
   async create(payload) {
+    const { userId, familyId } = await myContext()
     const row = transactionRow(payload)
-    row.user_id = await currentUserId()
+    row.user_id = userId
+    row.family_id = familyId
     const { data, error } = await supabase
       .from('transactions')
       .insert(row)
@@ -93,10 +101,12 @@ export const loansApi = {
   },
 
   async create(payload) {
+    const { userId, familyId } = await myContext()
     const { data, error } = await supabase
       .from('loans')
       .insert({
-        user_id: await currentUserId(),
+        user_id: userId,
+        family_id: familyId,
         person: payload.person.trim(),
         kind: payload.kind,
         amount: toNumber(payload.amount),
@@ -219,5 +229,15 @@ export const summaryApi = {
       else borrowed += amount
     }
     return { gave, borrowed }
+  },
+}
+
+export const familyApi = {
+  async getMy() {
+    const { familyId } = await myContext()
+    if (!familyId) return null
+    const { data, error } = await supabase.from('families').select('*').eq('id', familyId).maybeSingle()
+    if (error) throw error
+    return data
   },
 }

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
-import { transactionsApi, summaryApi, loansApi } from '../lib/api.js'
+import { transactionsApi, summaryApi, loansApi, familyApi } from '../lib/api.js'
 import { formatIDR, formatDate, formatMonth, monthRange } from '../lib/format.js'
 import { categoryColor } from '../lib/categories.js'
 
@@ -13,6 +13,7 @@ const summary = ref({ income: 0, expense: 0, count: 0 })
 const loans = ref({ gave: 0, borrowed: 0 })
 const recent = ref([])
 const activeLoans = ref([])
+const family = ref(null)
 const loading = ref(true)
 const error = ref('')
 
@@ -36,16 +37,18 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [month, loanTotals, latest, active] = await Promise.all([
+    const [month, loanTotals, latest, active, fam] = await Promise.all([
       summaryApi.month(range.value.startDate, range.value.endDate),
       summaryApi.activeLoans(),
       transactionsApi.list(null, { limit: 5 }),
       loansApi.list('active'),
+      familyApi.getMy(),
     ])
     summary.value = month
     loans.value = loanTotals
     recent.value = latest
     activeLoans.value = active.slice(0, 3)
+    family.value = fam
   } catch (err) {
     error.value = err.message
   } finally {
@@ -72,9 +75,15 @@ onMounted(load)
     <!-- Header -->
     <div class="mb-5">
       <p class="text-sm text-slate-400">{{ todayLabel }}</p>
-      <h1 class="mt-0.5 text-xl font-extrabold text-slate-900">
-        {{ greeting }}, {{ auth.displayName.split(' ')[0] }} <span class="ml-1 inline-block">👋</span>
-      </h1>
+      <div class="mt-0.5 flex items-center justify-between gap-2">
+        <h1 class="text-xl font-extrabold text-slate-900">
+          {{ greeting }}, {{ auth.displayName.split(' ')[0] }} <span class="ml-1 inline-block">👋</span>
+        </h1>
+        <span v-if="family" class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm11 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+          {{ family.name }}
+        </span>
+      </div>
     </div>
 
     <!-- Month navigator -->
