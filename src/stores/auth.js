@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase.js'
+import { recordSessionStart, isSessionExpired } from '../lib/sessionStorage.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -13,11 +14,46 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshUser() {
     loading.value = true
-    const { data } = await supabase.auth.getUser()
-    user.value = data.user ?? null
-    if (user.value) await loadProfile(user.value.id)
-    loading.value = false
-    return user.value
+    try {
+      // 1) Pulihkan sesi dari penyimpanan lokal (tanpa jaringan) -> login tetap saat offline.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const storedUser = sessionData?.session?.user ?? null
+
+      if (!storedUser) {
+        user.value = null
+        return null
+      }
+
+      // 2) Guard auto-logout: maksimal aktif 1 bulan.
+      if (isSessionExpired()) {
+        await supabase.auth.signOut()
+        user.value = null
+        profile.value = null
+        return null
+      }
+
+      // 3) Validasi token ke server (rotasi refresh token).
+      try {
+        const { data } = await supabase.auth.getUser()
+        if (data.user) {
+          user.value = data.user
+        } else {
+          // Token sudah tidak valid di server -> keluar.
+          await supabase.auth.signOut()
+          user.value = null
+          profile.value = null
+          return null
+        }
+      } catch {
+        // Gagal jaringan: tetap gunakan sesi tersimpan.
+        user.value = storedUser
+      }
+
+      if (user.value) await loadProfile(user.value.id)
+      return user.value
+    } finally {
+      loading.value = false
+    }
   }
 
   async function loadProfile(id) {
@@ -32,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    recordSessionStart()
     user.value = data.user
     if (data.user) await loadProfile(data.user.id)
     return data
@@ -46,6 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
       },
     })
     if (error) throw error
+    if (data.session) recordSessionStart()
     return data
   }
 
