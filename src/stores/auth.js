@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabase.js'
-import { recordSessionStart, isSessionExpired } from '../lib/sessionStorage.js'
+import { recordSessionStart, isSessionExpired, storageDiag } from '../lib/sessionStorage.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const profile = ref(null)
   const loading = ref(true)
+  const failReason = ref('')
 
   const isAuthenticated = computed(() => !!user.value)
   const displayName = computed(() => profile.value?.full_name?.trim() || user.value?.email || 'Pengguna')
@@ -14,19 +15,23 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function refreshUser() {
     loading.value = true
+    failReason.value = ''
     try {
       // 1) Pulihkan sesi dari penyimpanan lokal (tanpa jaringan) -> login tetap saat offline.
       const { data: sessionData } = await supabase.auth.getSession()
       const storedUser = sessionData?.session?.user ?? null
 
       if (!storedUser) {
+        failReason.value = 'storage kosong'
         user.value = null
+        console.warn('[auth] Tidak ada sesi tersimpan. Fungsi penyimpanan:', await storageDiag())
         return null
       }
 
       // 2) Guard auto-logout: maksimal aktif 1 bulan.
-      if (isSessionExpired()) {
-        await supabase.auth.signOut()
+      if (await isSessionExpired()) {
+        failReason.value = 'sesi kedaluwarsa (1 bulan)'
+        await supabase.auth.signOut({ scope: 'local' })
         user.value = null
         profile.value = null
         return null
@@ -38,8 +43,10 @@ export const useAuthStore = defineStore('auth', () => {
         if (data.user) {
           user.value = data.user
         } else {
-          // Token sudah tidak valid di server -> keluar.
-          await supabase.auth.signOut()
+          // Token sudah tidak valid di server -> keluar (hanya lokal, jangan
+          // membatalkan token server yang mungkin masih sah di perangkat lain).
+          failReason.value = 'token tidak valid di server'
+          await supabase.auth.signOut({ scope: 'local' })
           user.value = null
           profile.value = null
           return null
@@ -51,6 +58,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (user.value) await loadProfile(user.value.id)
       return user.value
+    } catch (err) {
+      failReason.value = err.message || 'error'
+      console.error('[auth] Gagal memuat sesi:', err)
+      return null
     } finally {
       loading.value = false
     }
@@ -116,6 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     profile,
     loading,
+    failReason,
     isAuthenticated,
     displayName,
     initial,

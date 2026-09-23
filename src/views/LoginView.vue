@@ -16,6 +16,15 @@ const forgot = ref(false)
 const loading = ref(false)
 const message = ref('')
 const error = ref('')
+const showDiag = ref(false)
+const diagText = ref('')
+
+async function checkStorage() {
+  const { storageDiag } = await import('../lib/sessionStorage.js')
+  const result = await storageDiag()
+  diagText.value = JSON.stringify(result, null, 2)
+  showDiag.value = true
+}
 
 function switchMode(m) {
   mode.value = m
@@ -121,6 +130,13 @@ watch(forgot, (v) => {
       </div>
 
       <p class="mt-6 text-center text-xs text-emerald-100/80">GM Financial Tracker · Kelola keuangan keluarga dengan mudah</p>
+
+      <details v-if="auth.failReason" class="mt-3 rounded-lg bg-emerald-900/40 p-2 text-[10px] leading-relaxed text-emerald-100/60">
+        <summary class="cursor-pointer select-none font-medium">Info teknis (sesi)</summary>
+        <div class="mt-1">Sesi tidak dipulihkan: <code class="text-emerald-100">{{ auth.failReason }}</code></div>
+        <button type="button" class="mt-1 underline" @click="checkStorage">Cek status penyimpanan browser</button>
+        <pre v-if="showDiag" class="mt-1 whitespace-pre-wrap">{{ diagText }}</pre>
+      </details>
     </div>
   </div>
 </template>
