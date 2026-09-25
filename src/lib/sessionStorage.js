@@ -92,18 +92,22 @@ async function idbDelete(key) {
   } catch {}
 }
 
-function idbPut(key, value) {
-  idbOpen()
-    .then((db) => {
-      if (!db) return
-      return new Promise((resolve) => {
-        const tx = db.transaction(DB_STORE, 'readwrite')
-        tx.objectStore(DB_STORE).put(value, IDB_KEY_PREFIX + key)
-        tx.oncomplete = () => resolve()
-        tx.onerror = () => resolve()
-      }).finally(() => db.close())
+async function idbSet(key, value) {
+  try {
+    const db = await idbOpen()
+    if (!db) return
+    await new Promise((resolve) => {
+      const tx = db.transaction(DB_STORE, 'readwrite')
+      tx.objectStore(DB_STORE).put(value, IDB_KEY_PREFIX + key)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
     })
-    .catch(() => {})
+    db.close()
+  } catch {}
+}
+
+function idbPut(key, value) {
+  idbSet(key, value).catch(() => {})
 }
 
 /**
@@ -155,6 +159,25 @@ export function recordSessionStart() {
   storeValue(SESSION_STARTED_KEY, new Date().toISOString())
 }
 
+// ---- Snapshot sesi independen (tidak bergantung pada persistensi internal supabase) ----
+export const SESSION_SNAPSHOT_KEY = 'gm_supabase_session'
+
+export function saveSessionSnapshot(value) {
+  storeValue(SESSION_SNAPSHOT_KEY, value)
+}
+
+export async function loadSessionSnapshot() {
+  const s = readValue(SESSION_SNAPSHOT_KEY, true)
+  if (s?.value) return s.value
+  return idbGet(SESSION_SNAPSHOT_KEY)
+}
+
+export function clearSessionSnapshot() {
+  if (useLocal) window.localStorage.removeItem(SESSION_SNAPSHOT_KEY)
+  eraseCookie(SESSION_SNAPSHOT_KEY)
+  idbDelete(SESSION_SNAPSHOT_KEY)
+}
+
 export async function isSessionExpired() {
   const local = readValue(SESSION_STARTED_KEY, true)
   const raw = local?.value ?? (await idbGet(SESSION_STARTED_KEY))
@@ -188,7 +211,7 @@ export async function storageDiag() {
     results.cookie = 'gagal'
   }
   try {
-    idbPut(testKey, sample)
+    await idbSet(testKey, sample)
     const v = await idbGet(testKey)
     await idbDelete(testKey)
     results.indexedDB = v === sample ? 'ok' : 'gagal'

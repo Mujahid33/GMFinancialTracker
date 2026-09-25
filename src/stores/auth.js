@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { supabase } from '../lib/supabase.js'
-import { recordSessionStart, isSessionExpired, storageDiag } from '../lib/sessionStorage.js'
+import { supabase, restoreStoredSession } from '../lib/supabase.js'
+import { recordSessionStart, isSessionExpired, storageDiag, saveSessionSnapshot } from '../lib/sessionStorage.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -17,12 +17,18 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     failReason.value = ''
     try {
+      // 0) Pulihkan dari snapshot kita sendiri bila supabase tidak menemukan apa-apa.
+      const restoreInfo = await restoreStoredSession()
+
       // 1) Pulihkan sesi dari penyimpanan lokal (tanpa jaringan) -> login tetap saat offline.
       const { data: sessionData } = await supabase.auth.getSession()
       const storedUser = sessionData?.session?.user ?? null
 
       if (!storedUser) {
-        failReason.value = 'storage kosong'
+        const suffix = restoreInfo.hasSnapshot
+          ? ` (snapshot ada, status: ${restoreInfo.restored})`
+          : ' (snapshot: tidak ada)'
+        failReason.value = 'storage kosong' + suffix
         user.value = null
         console.warn('[auth] Tidak ada sesi tersimpan. Fungsi penyimpanan:', await storageDiag())
         return null
@@ -80,6 +86,7 @@ export const useAuthStore = defineStore('auth', () => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     recordSessionStart()
+    if (data.session) saveSessionSnapshot(JSON.stringify(data.session))
     user.value = data.user
     if (data.user) await loadProfile(data.user.id)
     return data
@@ -94,7 +101,10 @@ export const useAuthStore = defineStore('auth', () => {
       },
     })
     if (error) throw error
-    if (data.session) recordSessionStart()
+    if (data.session) {
+      recordSessionStart()
+      saveSessionSnapshot(JSON.stringify(data.session))
+    }
     return data
   }
 
