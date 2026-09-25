@@ -18,6 +18,8 @@ const message = ref('')
 const error = ref('')
 const showDiag = ref(false)
 const diagText = ref('')
+const buildStamp = __BUILD_TIME__
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches
 
 async function checkStorage() {
   const { storageDiag } = await import('../lib/sessionStorage.js')
@@ -26,7 +28,7 @@ async function checkStorage() {
   showDiag.value = true
 }
 
-if (auth.failReason) checkStorage()
+checkStorage()
 
 function switchMode(m) {
   mode.value = m
@@ -133,9 +135,10 @@ watch(forgot, (v) => {
 
       <p class="mt-6 text-center text-xs text-emerald-100/80">GM Financial Tracker · Kelola keuangan keluarga dengan mudah</p>
 
-      <details v-if="auth.failReason" class="mt-3 rounded-lg bg-emerald-900/40 p-2 text-[10px] leading-relaxed text-emerald-100/60" open>
+      <details class="mt-3 rounded-lg bg-emerald-900/40 p-2 text-[10px] leading-relaxed text-emerald-100/60" open>
         <summary class="cursor-pointer select-none font-medium">Info teknis (sesi)</summary>
-        <div class="mt-1">Sesi tidak dipulihkan: <code class="text-emerald-100">{{ auth.failReason }}</code></div>
+        <div class="mt-1">Status sesi: <code class="text-emerald-100">{{ auth.failReason || 'tidak ada catatan kegagalan' }}</code></div>
+        <div class="mt-1">Build: <code class="text-emerald-100">{{ buildStamp }}</code> · Mode: <code class="text-emerald-100">{{ isStandalone ? 'aplikasi (PWA)' : 'browser' }}</code></div>
         <button type="button" class="mt-1 underline" @click="checkStorage">Cek status penyimpanan browser</button>
         <pre v-if="showDiag" class="mt-1 whitespace-pre-wrap">{{ diagText }}</pre>
       </details>
