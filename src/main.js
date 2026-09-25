@@ -5,17 +5,25 @@ import router from './router/index.js'
 import App from './App.vue'
 import './style.css'
 
-const app = createApp(App)
-const pinia = createPinia()
+async function bootstrap() {
+  const app = createApp(App)
+  const pinia = createPinia()
 
-app.use(pinia)
-app.use(router)
+  app.use(pinia)
 
-const auth = useAuthStore()
-try {
-  await auth.refreshUser()
-} catch (err) {
-  console.error('Gagal memuat sesi:', err)
+  // Pulihkan sesi DULU sebelum router aktif, supaya guard navigasi
+  // tidak pernah mengambil keputusan "belum login" saat sesi sebenarnya
+  // berhasil dipulihkan.
+  const auth = useAuthStore()
+  try {
+    await auth.refreshUser()
+  } catch (err) {
+    console.error('Gagal memuat sesi:', err)
+  }
+
+  app.use(router)
+  await router.isReady()
+  app.mount('#app')
 }
 
-app.mount('#app')
+bootstrap()
