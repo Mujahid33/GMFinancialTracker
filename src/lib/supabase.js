@@ -26,10 +26,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Simpan snapshot sesi setiap kali ada perubahan auth, supaya bisa
 // dipulihkan secara mandiri di boot berikutnya.
+// Catatan: jangan menghapus snapshot pada INITIAL_SESSION (di-boot) —
+// hanya bersihkan saat benar-benar keluar.
 supabase.auth.onAuthStateChange((event, session) => {
   if (session?.access_token) {
     saveSessionSnapshot(JSON.stringify(session))
-  } else {
+  } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
     clearSessionSnapshot()
   }
 })

@@ -45,13 +45,14 @@ export const useAuthStore = defineStore('auth', () => {
 
       // 3) Validasi token ke server (rotasi refresh token).
       try {
-        const { data } = await supabase.auth.getUser()
+        const { data, error } = await supabase.auth.getUser()
         if (data.user) {
           user.value = data.user
         } else {
           // Token sudah tidak valid di server -> keluar (hanya lokal, jangan
           // membatalkan token server yang mungkin masih sah di perangkat lain).
-          failReason.value = 'token tidak valid di server'
+          if (error) console.warn('[auth] getUser menolak token:', error.message)
+          failReason.value = 'token tidak valid di server' + (error?.message ? ` (${error.message})` : '')
           await supabase.auth.signOut({ scope: 'local' })
           user.value = null
           profile.value = null
